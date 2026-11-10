@@ -1,0 +1,7 @@
+; Exports of the system xinput9_1_0.dll that Sleeping Dogs DE imports.
+; Each name maps to a forwarding function in xinput_proxy.cpp.
+LIBRARY xinput9_1_0
+EXPORTS
+    XInputGetState        = Proxy_XInputGetState
+    XInputSetState        = Proxy_XInputSetState
+    XInputGetCapabilities = Proxy_XInputGetCapabilities

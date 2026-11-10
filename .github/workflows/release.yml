@@ -1,0 +1,55 @@
+name: Release
+
+# Builds xinput9_1_0.dll and publishes it as a GitHub release.
+#   - Push a tag like v0.1.0 to release that commit, or
+#   - run the workflow manually and give it a tag name (the tag is created on the selected branch).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create (e.g. v0.1.0)"
+        required: true
+      prerelease:
+        description: "Mark as pre-release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # build.cmd locates Visual Studio via vswhere, sets up the x64 toolchain and
+      # builds the RelWithDebInfo preset with CMake + Ninja (both preinstalled on the runner).
+      - name: Build
+        shell: cmd
+        run: build.cmd x64-release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "build/x64-release"
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "$out/xinput9_1_0.dll" dist/
+          Compress-Archive -Path "$out/xinput9_1_0.dll", README.md -DestinationPath "dist/SleepingDogsTrainer-$env:TAG.zip"
+          Compress-Archive -Path "$out/xinput9_1_0.pdb" -DestinationPath "dist/xinput9_1_0-$env:TAG-pdb.zip"
+          Get-ChildItem dist
+
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = (Get-ChildItem dist -File).FullName
+          $ghArgs = @($env:TAG) + $files + @("--title", $env:TAG, "--generate-notes", "--target", "${{ github.sha }}")
+          if ("${{ inputs.prerelease }}" -eq "true") { $ghArgs += "--prerelease" }
+          gh release create @ghArgs
